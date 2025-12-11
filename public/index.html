@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能旅游规划</title>
+    <link rel="stylesheet" href="style.css">
+    </head>
+<body>
+
+    <div class="container">
+        <h1>AI 智能旅游规划</h1>
+        <div class="controls-card">
+            <h2>规划输入</h2>
+            <div class="input-group">
+                <label for="gemini-key">Gemini API Key:</label>
+                <input type="password" id="gemini-key" placeholder="输入您的 Gemini API Key" required>
+            </div>
+
+            <div class="input-row">
+                <div class="input-group half">
+                    <label for="city">目的地 (省-市):</label>
+                    <input type="text" id="city" placeholder="例如：广东-深圳" value="广东-深圳" required>
+                </div>
+                <div class="input-group half">
+                    <label for="days">几日游:</label>
+                    <input type="number" id="days" min="1" max="14" value="3" required>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="required-spots">必去景点 (用逗号分隔，可选):</label>
+                <input type="text" id="required-spots" placeholder="例如：世界之窗, 欢乐海岸">
+            </div>
+
+            <button id="plan-button" onclick="generatePlan()">生成旅游路线</button>
+        </div>
+        
+        <div id="loading-spinner" style="display: none;">正在连接 Gemini 智能规划中...</div>
+
+        <div id="results-card" class="result-card" style="display: none;">
+            <h1 id="city-title"></h1>
+            
+            <div class="data-section full-width">
+                <div class="section-block">
+                    <h3>️ 旅游路线</h3>
+                    <div id="travel-route"></div>
+                </div>
+                <div class="section-block">
+                    <h3> 城市数据</h3>
+                    <p id="city-data"></p>
+                </div>
+                <div class="section-block">
+                    <h3> 特色美食</h3>
+                    <p id="local-delicacies"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
