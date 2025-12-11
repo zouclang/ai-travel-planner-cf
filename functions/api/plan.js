@@ -1,67 +1,67 @@
 /**
  * Cloudflare Pages Function: /api/plan
- * ¹Ø¼üĞŞ¸´£ºÔÚËùÓĞ Response ÖĞÇ¿ÖÆÌí¼Ó 'charset=utf-8'£¬½â¾öÖĞÎÄÂÒÂëÎÊÌâ¡£
+ * å…³é”®ä¿®å¤ï¼šåœ¨æ‰€æœ‰ Response ä¸­å¼ºåˆ¶æ·»åŠ  'charset=utf-8'ï¼Œè§£å†³ä¸­æ–‡ä¹±ç é—®é¢˜ã€‚
  */
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
-// ¹¹ÔìÒ»¸ö´¿ÎÄ±¾Ö¸Áî£¬ÈÃÄ£ĞÍÀ´Éú³É JSON
+// æ„é€ ä¸€ä¸ªçº¯æ–‡æœ¬æŒ‡ä»¤ï¼Œè®©æ¨¡å‹æ¥ç”Ÿæˆ JSON
 function buildPromptText(city, days, requiredSpots) {
-    const requiredText = requiredSpots ? `±ØÈ¥¾°µã£º${requiredSpots}¡£ÇëÈ·±£ËùÓĞÕâĞ©¾°µã¶¼°üº¬ÔÚÂ·ÏßÖĞ¡£` : 'ÓÃ»§Ã»ÓĞÖ¸¶¨±ØÈ¥¾°µã¡£';
+    const requiredText = requiredSpots ? `å¿…å»æ™¯ç‚¹ï¼š${requiredSpots}ã€‚è¯·ç¡®ä¿æ‰€æœ‰è¿™äº›æ™¯ç‚¹éƒ½åŒ…å«åœ¨è·¯çº¿ä¸­ã€‚` : 'ç”¨æˆ·æ²¡æœ‰æŒ‡å®šå¿…å»æ™¯ç‚¹ã€‚';
 
     return `
-    ÄãÊÇÒ»¸ö×¨ÒµµÄÂÃÓÎ¹æ»®Ê¦¡£ÇëÑÏ¸ñ°´ÕÕÒÔÏÂÒªÇóºÍ¸ñÊ½·µ»Ø½á¹û£º
+    ä½ æ˜¯ä¸€ä¸ªä¸“ä¸šçš„æ—…æ¸¸è§„åˆ’å¸ˆã€‚è¯·ä¸¥æ ¼æŒ‰ç…§ä»¥ä¸‹è¦æ±‚å’Œæ ¼å¼è¿”å›ç»“æœï¼š
     
-    ¹æ»®ÒªÇó£º
-    1. Ä¿µÄµØ£º${city}
-    2. ÂÃĞĞÌìÊı£º${days}ÈÕÓÎ¡£
-    3. ¾°µã°²ÅÅ£º${requiredText} ÔÚÂú×ã±ØÈ¥¾°µãµÄÇ°ÌáÏÂ£¬ºÏÀí°²ÅÅÆäËûÍÆ¼ö¾°µã£¬Ê¹Â·ÏßÁ÷³©ÇÒÓÅ»¯½»Í¨¡£
-    4. ÓïÑÔÒªÇó£ºËùÓĞÊä³ö±ØĞëÊÇÁ÷³©¡¢×¨ÒµµÄÖĞÎÄ¡£
+    è§„åˆ’è¦æ±‚ï¼š
+    1. ç›®çš„åœ°ï¼š${city}
+    2. æ—…è¡Œå¤©æ•°ï¼š${days}æ—¥æ¸¸ã€‚
+    3. æ™¯ç‚¹å®‰æ’ï¼š${requiredText} åœ¨æ»¡è¶³å¿…å»æ™¯ç‚¹çš„å‰æä¸‹ï¼Œåˆç†å®‰æ’å…¶ä»–æ¨èæ™¯ç‚¹ï¼Œä½¿è·¯çº¿æµç•…ä¸”ä¼˜åŒ–äº¤é€šã€‚
+    4. è¯­è¨€è¦æ±‚ï¼šæ‰€æœ‰è¾“å‡ºå¿…é¡»æ˜¯æµç•…ã€ä¸“ä¸šçš„ä¸­æ–‡ã€‚
     
-    **·µ»Ø¸ñÊ½**£ºÇëÑÏ¸ñÒÔÒ»¸ö JSON ¶ÔÏóµÄĞÎÊ½·µ»Ø£¬²»Òª°üº¬ÈÎºÎÎÄ×Ö¡¢ËµÃ÷»ò Markdown ±ê¼Ç (Èç \`\`\`json)¡£JSON ½á¹¹±ØĞëÊÇ£º
+    **è¿”å›æ ¼å¼**ï¼šè¯·ä¸¥æ ¼ä»¥ä¸€ä¸ª JSON å¯¹è±¡çš„å½¢å¼è¿”å›ï¼Œä¸è¦åŒ…å«ä»»ä½•æ–‡å­—ã€è¯´æ˜æˆ– Markdown æ ‡è®° (å¦‚ \`\`\`json)ã€‚JSON ç»“æ„å¿…é¡»æ˜¯ï¼š
     
     {
       "city_card_data": {
-        "title": "³ÇÊĞÃû - XÈÕÉî¶ÈÓÎ",
+        "title": "åŸå¸‚å - Xæ—¥æ·±åº¦æ¸¸",
         "travel_route": [
-          {"day": 1, "route": "¾°µãÃû³ÆA -> ¾°µãÃû³ÆB"},
-          // ... ¸ü¶àÌìÊı
+          {"day": 1, "route": "æ™¯ç‚¹åç§°A -> æ™¯ç‚¹åç§°B"},
+          // ... æ›´å¤šå¤©æ•°
         ],
-        "city_data": "¹ØÓÚ³ÇÊĞÀúÊ·¡¢ÌØÉ«¡¢¾­¼ÃµÈÊı¾İµÄ¼ò¶Ì½éÉÜ£¨100×ÖÒÔÄÚ£©¡£",
-        "local_delicacies": ["ÃÀÊ³A", "ÃÀÊ³B", "ÃÀÊ³C", "ÃÀÊ³D"]
+        "city_data": "å…³äºåŸå¸‚å†å²ã€ç‰¹è‰²ã€ç»æµç­‰æ•°æ®çš„ç®€çŸ­ä»‹ç»ï¼ˆ100å­—ä»¥å†…ï¼‰ã€‚",
+        "local_delicacies": ["ç¾é£ŸA", "ç¾é£ŸB", "ç¾é£ŸC", "ç¾é£ŸD"]
       }
     }
     `;
 }
 
-// ÔöÇ¿µÄ JSON ÇåÀíº¯Êı
+// å¢å¼ºçš„ JSON æ¸…ç†å‡½æ•°
 function cleanJsonString(text) {
     if (!text) return null;
 
-    // 1. ÒÆ³ı Markdown ´úÂë¿é±ê¼Ç (```json ... ``` »ò ``` ... ```)
+    // 1. ç§»é™¤ Markdown ä»£ç å—æ ‡è®° (```json ... ``` æˆ– ``` ... ```)
     let cleaned = text.replace(/^```json\s*|```\s*$/gs, '').trim();
     cleaned = cleaned.replace(/^```\s*|```\s*$/gs, '').trim();
 
-    // 2. ²éÕÒ JSON ¶ÔÏóµÄÆğÊ¼ºÍ½áÊøÎ»ÖÃ
+    // 2. æŸ¥æ‰¾ JSON å¯¹è±¡çš„èµ·å§‹å’Œç»“æŸä½ç½®
     const startIndex = cleaned.indexOf('{');
     const endIndex = cleaned.lastIndexOf('}');
     
     if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
         cleaned = cleaned.substring(startIndex, endIndex + 1);
     } else {
-        return null; // ÕÒ²»µ½ÓĞĞ§µÄ JSON ½á¹¹
+        return null; // æ‰¾ä¸åˆ°æœ‰æ•ˆçš„ JSON ç»“æ„
     }
     
-    // 3. ÒÆ³ı JSON ½á¹¹ÌåÇ°ºóµÄ¿Õ°××Ö·û
+    // 3. ç§»é™¤ JSON ç»“æ„ä½“å‰åçš„ç©ºç™½å­—ç¬¦
     cleaned = cleaned.trim();
     
     return cleaned;
 }
 
 
-// Pages Function µÄ´¦Àíº¯Êı
+// Pages Function çš„å¤„ç†å‡½æ•°
 export async function onRequest(context) {
-    const jsonHeader = { 'Content-Type': 'application/json; charset=utf-8' }; // ¡¾¹Ø¼üĞŞ¸´µã¡¿
+    const jsonHeader = { 'Content-Type': 'application/json; charset=utf-8' }; // ã€å…³é”®ä¿®å¤ç‚¹ã€‘
 
     try {
         const { request } = context;
@@ -93,9 +93,9 @@ export async function onRequest(context) {
             const apiError = await apiResponse.json(); 
             console.error('Gemini API Error:', apiError);
             
-            let errorMessage = `¹æ»®Ê§°Ü£ºGemini API µ÷ÓÃÊ§°Ü: ${apiResponse.statusText}.`;
+            let errorMessage = `è§„åˆ’å¤±è´¥ï¼šGemini API è°ƒç”¨å¤±è´¥: ${apiResponse.statusText}.`;
             if (apiError && apiError.error && apiError.error.message) {
-                 errorMessage += ` ÏêÇé: ${apiError.error.message}`;
+                 errorMessage += ` è¯¦æƒ…: ${apiError.error.message}`;
             }
 
             return new Response(
@@ -110,7 +110,7 @@ export async function onRequest(context) {
         
         if (!jsonText) {
              return new Response(
-                JSON.stringify({ error: "¹æ»®Ê§°Ü£ºGemini Î´ÄÜ·µ»ØÈÎºÎÄÚÈİ¡£" }),
+                JSON.stringify({ error: "è§„åˆ’å¤±è´¥ï¼šGemini æœªèƒ½è¿”å›ä»»ä½•å†…å®¹ã€‚" }),
                 { status: 500, headers: jsonHeader }
             );
         }
@@ -119,25 +119,25 @@ export async function onRequest(context) {
 
         if (!cleanedJsonText) {
              return new Response(
-                JSON.stringify({ error: "¹æ»®Ê§°Ü£ºGemini ·µ»ØµÄÎÄ±¾ÖĞÕÒ²»µ½ÓĞĞ§µÄ JSON ½á¹¹¡£" }),
+                JSON.stringify({ error: "è§„åˆ’å¤±è´¥ï¼šGemini è¿”å›çš„æ–‡æœ¬ä¸­æ‰¾ä¸åˆ°æœ‰æ•ˆçš„ JSON ç»“æ„ã€‚" }),
                 { status: 500, headers: jsonHeader }
             );
         }
 
         try {
             const parsedData = JSON.parse(cleanedJsonText);
-             // ³É¹¦·µ»Ø JSON
+             // æˆåŠŸè¿”å› JSON
              return new Response(JSON.stringify(parsedData), {
                 status: 200,
-                headers: jsonHeader, // ¡¾¹Ø¼üĞŞ¸´µã¡¿
+                headers: jsonHeader, // ã€å…³é”®ä¿®å¤ç‚¹ã€‘
             });
         } catch (e) {
              console.error('JSON.parse Error:', e);
              return new Response(JSON.stringify({ 
-                error: `¹æ»®Ê§°Ü£ºÎŞ·¨½âÎö Gemini ·µ»ØµÄ JSON Êı¾İ¡£` 
+                error: `è§„åˆ’å¤±è´¥ï¼šæ— æ³•è§£æ Gemini è¿”å›çš„ JSON æ•°æ®ã€‚` 
              }), {
                 status: 500,
-                headers: jsonHeader, // ¡¾¹Ø¼üĞŞ¸´µã¡¿
+                headers: jsonHeader, // ã€å…³é”®ä¿®å¤ç‚¹ã€‘
             });
         }
         
@@ -145,10 +145,10 @@ export async function onRequest(context) {
     } catch (e) {
         console.error('Serverless Function Internal Error:', e);
         return new Response(JSON.stringify({ 
-            error: `¹æ»®Ê§°Ü£º·¢ÉúÄÚ²¿´íÎó£¨ÍøÂç»òÔËĞĞÊ±£©¡£`
+            error: `è§„åˆ’å¤±è´¥ï¼šå‘ç”Ÿå†…éƒ¨é”™è¯¯ï¼ˆç½‘ç»œæˆ–è¿è¡Œæ—¶ï¼‰ã€‚`
         }), {
             status: 500,
-            headers: jsonHeader, // ¡¾¹Ø¼üĞŞ¸´µã¡¿
+            headers: jsonHeader, // ã€å…³é”®ä¿®å¤ç‚¹ã€‘
         });
     }
 }
