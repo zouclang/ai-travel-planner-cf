@@ -1,6 +1,6 @@
 /**
  * Cloudflare Pages Function: /api/plan
- * 终极修复方案：简化 Prompt 结构，确保请求体发送给 Gemini API时是有效的 JSON。
+ * 最终确认版：确保 Prompt 文本和错误处理的健壮性。
  */
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
@@ -42,15 +42,17 @@ function cleanJsonString(text) {
     let cleaned = text.replace(/^```json\s*|```\s*$/gs, '').trim();
     cleaned = cleaned.replace(/^```\s*|```\s*$/gs, '').trim();
 
-    // 2. 查找 JSON 对象的起始和结束位置 (可能模型返回的JSON对象在文本中间)
+    // 2. 查找 JSON 对象的起始和结束位置
     const startIndex = cleaned.indexOf('{');
     const endIndex = cleaned.lastIndexOf('}');
     
     if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
         cleaned = cleaned.substring(startIndex, endIndex + 1);
+    } else {
+        return null; // 找不到有效的 JSON 结构
     }
     
-    // 3. 移除 JSON 结构体前后的空白字符和 BOM 字符
+    // 3. 移除 JSON 结构体前后的空白字符
     cleaned = cleaned.trim();
     
     return cleaned;
@@ -71,16 +73,17 @@ export async function onRequest(context) {
             return new Response(JSON.stringify({ error: 'Missing required parameters' }), { status: 400 });
         }
 
-        // 使用新的 buildPromptText 生成纯文本指令
         const promptText = buildPromptText(city, days, requiredSpots);
 
-        const apiResponse = await fetch(`${GEMINI_API_URL}?key=${geminiKey}`, {
+        // 使用 encodeURIComponent 确保 Key 在 URL 中安全传递，避免特殊字符问题
+        const safeGeminiKey = encodeURIComponent(geminiKey);
+        
+        const apiResponse = await fetch(`${GEMINI_API_URL}?key=${safeGeminiKey}`, { // 使用安全 Key
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                // 直接将纯文本指令放入 parts 中
                 contents: [{ role: 'user', parts: [{ text: promptText }] }],
                 config: {},
             }),
@@ -88,11 +91,17 @@ export async function onRequest(context) {
 
         // 检查 Gemini API 响应状态
         if (!apiResponse.ok) {
-            const apiError = await apiResponse.text();
+            const apiError = await apiResponse.json(); // 尝试读取 JSON 错误响应
             console.error('Gemini API Error:', apiError);
+            
+            let errorMessage = `Gemini API 调用失败: ${apiResponse.statusText}.`;
+            // 如果 API 提供了详细信息，则加入到错误中
+            if (apiError && apiError.error && apiError.error.message) {
+                 errorMessage += ` 详情: ${apiError.error.message}`;
+            }
+
             return new Response(
-                // 即使是 Bad Request (400)，也返回错误信息
-                JSON.stringify({ error: `规划失败：Gemini API 调用失败: ${apiResponse.statusText}. 请检查您的 API Key 是否已启用。` }),
+                JSON.stringify({ error: errorMessage }),
                 { status: 500, headers: { 'Content-Type': 'application/json' } }
             );
         }
@@ -108,7 +117,7 @@ export async function onRequest(context) {
             );
         }
         
-        // 使用增强的清理函数处理 JSON 文本
+        // 清理并解析 JSON
         const cleanedJsonText = cleanJsonString(jsonText);
 
         if (!cleanedJsonText) {
@@ -118,18 +127,27 @@ export async function onRequest(context) {
             );
         }
 
-        // 尝试解析 JSON
-        const parsedData = JSON.parse(cleanedJsonText);
-
-        return new Response(JSON.stringify(parsedData), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        try {
+            const parsedData = JSON.parse(cleanedJsonText);
+             return new Response(JSON.stringify(parsedData), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        } catch (e) {
+             console.error('JSON.parse Error:', e);
+             return new Response(JSON.stringify({ 
+                error: `规划失败：无法解析 Gemini 返回的 JSON 数据。` 
+             }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+        
 
     } catch (e) {
-        console.error('Serverless Function Error (Internal Error):', e);
+        console.error('Serverless Function Internal Error:', e);
         return new Response(JSON.stringify({ 
-            error: `规划失败：内部错误，请检查 Cloudflare Logs。`
+            error: `规划失败：发生内部错误（网络或运行时）。`
         }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
