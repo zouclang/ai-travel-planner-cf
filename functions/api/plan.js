@@ -1,11 +1,9 @@
 /**
  * Cloudflare Pages Function: /api/plan
- * 负责接收前端请求，调用 Gemini API，并返回结构化数据。
- *
- * 解决 Bad Request 错误：移除了 strict JSON Mime Type 要求，并增强了 JSON 文本清理。
+ * 增强版：专注于清理 Gemini 返回的非标准 JSON 文本，提高解析成功率。
  */
 
-const GEMINI_API_URL = '[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent)';
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
 // 构造简化的 Prompt
 function buildPrompt(city, days, requiredSpots) {
@@ -20,7 +18,7 @@ function buildPrompt(city, days, requiredSpots) {
     3. **景点安排：** ${requiredText} 在满足必去景点的前提下，请根据天数和城市特色，合理安排其他推荐景点，使路线流畅且优化交通。
     4. **语言要求：** 所有输出必须是流畅、专业的中文。
     
-    **返回格式**：严格使用一个 JSON 对象，结构如下。请不要在 JSON 对象外包含任何其他文字或说明。
+    **返回格式**：严格使用一个 JSON 对象，结构如下。请不要在 JSON 对象外包含任何其他文字、说明或 Markdown 标记。
     
     {
       "city_card_data": {
@@ -36,6 +34,29 @@ function buildPrompt(city, days, requiredSpots) {
     }
     `;
 }
+
+// 增强的 JSON 清理函数
+function cleanJsonString(text) {
+    if (!text) return null;
+
+    // 1. 移除 Markdown 代码块标记 (```json ... ``` 或 ``` ... ```)
+    let cleaned = text.replace(/^```json\s*|```\s*$/gs, '').trim();
+    cleaned = cleaned.replace(/^```\s*|```\s*$/gs, '').trim();
+
+    // 2. 查找 JSON 对象的起始和结束位置 (可能模型返回的JSON对象在文本中间)
+    const startIndex = cleaned.indexOf('{');
+    const endIndex = cleaned.lastIndexOf('}');
+    
+    if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+        cleaned = cleaned.substring(startIndex, endIndex + 1);
+    }
+    
+    // 3. 移除 JSON 结构体前后的空白字符和 BOM 字符
+    cleaned = cleaned.trim();
+    
+    return cleaned;
+}
+
 
 // Pages Function 的处理函数
 export async function onRequest(context) {
@@ -61,39 +82,44 @@ export async function onRequest(context) {
             body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: prompt }] }],
                 config: {
-                    // 移除 responseMimeType，以避免 Gemini 模型在严格模式下因输出不完美而返回 400 错误
+                    // 不做严格的 MimeType 限制
                 },
             }),
         });
 
         // 检查 Gemini API 响应状态
         if (!apiResponse.ok) {
-            // 尝试读取 Gemini API 的错误信息
             const apiError = await apiResponse.text();
             console.error('Gemini API Error:', apiError);
             return new Response(
-                JSON.stringify({ error: `Gemini API 调用失败: ${apiResponse.statusText}. 请检查您的 API Key。` }),
+                JSON.stringify({ error: `规划失败：Gemini API 调用失败: ${apiResponse.statusText}. 请检查您的 API Key。` }),
                 { status: 500, headers: { 'Content-Type': 'application/json' } }
             );
         }
 
         const apiResult = await apiResponse.json();
         
-        // 提取文本内容
         let jsonText = apiResult.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (!jsonText) {
              return new Response(
-                JSON.stringify({ error: "Gemini 未能返回结构化内容。" }),
+                JSON.stringify({ error: "规划失败：Gemini 未能返回任何内容。" }),
                 { status: 500, headers: { 'Content-Type': 'application/json' } }
             );
         }
         
-        // 增强 JSON 解析：移除Markdown代码块标记（如 ```json ... ```）
-        jsonText = jsonText.replace(/^```json\s*|```\s*$/g, '').trim();
-        jsonText = jsonText.replace(/^```\s*|```\s*$/g, '').trim(); // 移除没有 json 关键字的代码块
+        // 使用增强的清理函数处理 JSON 文本
+        const cleanedJsonText = cleanJsonString(jsonText);
 
-        const parsedData = JSON.parse(jsonText);
+        if (!cleanedJsonText) {
+             return new Response(
+                JSON.stringify({ error: "规划失败：Gemini 返回的文本中找不到有效的 JSON 结构。" }),
+                { status: 500, headers: { 'Content-Type': 'application/json' } }
+            );
+        }
+
+        // 尝试解析 JSON
+        const parsedData = JSON.parse(cleanedJsonText);
 
         return new Response(JSON.stringify(parsedData), {
             status: 200,
@@ -101,9 +127,11 @@ export async function onRequest(context) {
         });
 
     } catch (e) {
-        console.error('Serverless Function Error (JSON Parse or Internal Error):', e);
-        // 如果是 JSON.parse 失败，会捕获到这里的错误
-        return new Response(JSON.stringify({ error: `规划失败：无法解析 Gemini 返回的 JSON 数据。请重试。` }), {
+        console.error('Serverless Function Error (JSON Parse Failure or Internal Error):', e);
+        // 如果 JSON.parse 失败，会捕获到这里的错误
+        return new Response(JSON.stringify({ 
+            error: `规划失败：无法解析 Gemini 返回的 JSON 数据。请重试。`
+        }), {
             status: 500,
             headers: { 'Content-Type': 'application/json' },
         });
