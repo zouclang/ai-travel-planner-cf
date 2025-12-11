@@ -1,6 +1,6 @@
 /**
  * Cloudflare Pages Function: /api/plan
- * 最终修复版本：移除不兼容 v1beta 接口的 'config' 字段，确保 API 请求有效。
+ * 关键修复：在所有 Response 中强制添加 'charset=utf-8'，解决中文乱码问题。
  */
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
@@ -61,21 +61,22 @@ function cleanJsonString(text) {
 
 // Pages Function 的处理函数
 export async function onRequest(context) {
+    const jsonHeader = { 'Content-Type': 'application/json; charset=utf-8' }; // 【关键修复点】
+
     try {
         const { request } = context;
         if (request.method !== 'POST') {
-            return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405 });
+            return new Response(JSON.stringify({ error: 'Method Not Allowed' }), { status: 405, headers: jsonHeader });
         }
 
         const { geminiKey, city, days, requiredSpots } = await request.json();
 
         if (!geminiKey || !city || !days) {
-            return new Response(JSON.stringify({ error: 'Missing required parameters' }), { status: 400 });
+            return new Response(JSON.stringify({ error: 'Missing required parameters' }), { status: 400, headers: jsonHeader });
         }
 
         const promptText = buildPromptText(city, days, requiredSpots);
 
-        // 使用 encodeURIComponent 确保 Key 在 URL 中安全传递
         const safeGeminiKey = encodeURIComponent(geminiKey);
         
         const apiResponse = await fetch(`${GEMINI_API_URL}?key=${safeGeminiKey}`, {
@@ -85,11 +86,9 @@ export async function onRequest(context) {
             },
             body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: promptText }] }],
-                // 【核心修复】：移除空的 config: {} 字段，解决 "Unknown name config" 错误
             }),
         });
 
-        // 检查 Gemini API 响应状态
         if (!apiResponse.ok) {
             const apiError = await apiResponse.json(); 
             console.error('Gemini API Error:', apiError);
@@ -101,7 +100,7 @@ export async function onRequest(context) {
 
             return new Response(
                 JSON.stringify({ error: errorMessage }),
-                { status: 500, headers: { 'Content-Type': 'application/json' } }
+                { status: 500, headers: jsonHeader }
             );
         }
 
@@ -112,25 +111,25 @@ export async function onRequest(context) {
         if (!jsonText) {
              return new Response(
                 JSON.stringify({ error: "规划失败：Gemini 未能返回任何内容。" }),
-                { status: 500, headers: { 'Content-Type': 'application/json' } }
+                { status: 500, headers: jsonHeader }
             );
         }
         
-        // 清理并解析 JSON
         const cleanedJsonText = cleanJsonString(jsonText);
 
         if (!cleanedJsonText) {
              return new Response(
                 JSON.stringify({ error: "规划失败：Gemini 返回的文本中找不到有效的 JSON 结构。" }),
-                { status: 500, headers: { 'Content-Type': 'application/json' } }
+                { status: 500, headers: jsonHeader }
             );
         }
 
         try {
             const parsedData = JSON.parse(cleanedJsonText);
+             // 成功返回 JSON
              return new Response(JSON.stringify(parsedData), {
                 status: 200,
-                headers: { 'Content-Type': 'application/json' },
+                headers: jsonHeader, // 【关键修复点】
             });
         } catch (e) {
              console.error('JSON.parse Error:', e);
@@ -138,7 +137,7 @@ export async function onRequest(context) {
                 error: `规划失败：无法解析 Gemini 返回的 JSON 数据。` 
              }), {
                 status: 500,
-                headers: { 'Content-Type': 'application/json' },
+                headers: jsonHeader, // 【关键修复点】
             });
         }
         
@@ -149,7 +148,7 @@ export async function onRequest(context) {
             error: `规划失败：发生内部错误（网络或运行时）。`
         }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json' },
+            headers: jsonHeader, // 【关键修复点】
         });
     }
 }
