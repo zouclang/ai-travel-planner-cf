@@ -1,6 +1,6 @@
 /**
  * Cloudflare Pages Function: /api/plan
- * 关键修复：在所有 Response 中强制添加 'charset=utf-8'，解决中文乱码问题。
+ * 最终修复：移除所有可能导致乱码的 Unicode 符号，确保只返回标准 UTF-8 文本。
  */
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
@@ -24,6 +24,7 @@ function buildPromptText(city, days, requiredSpots) {
       "city_card_data": {
         "title": "城市名 - X日深度游",
         "travel_route": [
+          // 请使用标准的文本格式，例如：景点名称A -> 景点名称B
           {"day": 1, "route": "景点名称A -> 景点名称B"},
           // ... 更多天数
         ],
@@ -49,7 +50,7 @@ function cleanJsonString(text) {
     if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
         cleaned = cleaned.substring(startIndex, endIndex + 1);
     } else {
-        return null; // 找不到有效的 JSON 结构
+        return null; 
     }
     
     // 3. 移除 JSON 结构体前后的空白字符
@@ -61,7 +62,8 @@ function cleanJsonString(text) {
 
 // Pages Function 的处理函数
 export async function onRequest(context) {
-    const jsonHeader = { 'Content-Type': 'application/json; charset=utf-8' }; // 【关键修复点】
+    // 强制使用 UTF-8 编码的 JSON 头，确保浏览器正确解析
+    const jsonHeader = { 'Content-Type': 'application/json; charset=utf-8' }; 
 
     try {
         const { request } = context;
@@ -75,6 +77,7 @@ export async function onRequest(context) {
             return new Response(JSON.stringify({ error: 'Missing required parameters' }), { status: 400, headers: jsonHeader });
         }
 
+        // 使用移除特殊符号的 Prompt
         const promptText = buildPromptText(city, days, requiredSpots);
 
         const safeGeminiKey = encodeURIComponent(geminiKey);
@@ -91,8 +94,6 @@ export async function onRequest(context) {
 
         if (!apiResponse.ok) {
             const apiError = await apiResponse.json(); 
-            console.error('Gemini API Error:', apiError);
-            
             let errorMessage = `规划失败：Gemini API 调用失败: ${apiResponse.statusText}.`;
             if (apiError && apiError.error && apiError.error.message) {
                  errorMessage += ` 详情: ${apiError.error.message}`;
@@ -105,7 +106,6 @@ export async function onRequest(context) {
         }
 
         const apiResult = await apiResponse.json();
-        
         let jsonText = apiResult.candidates?.[0]?.content?.parts?.[0]?.text;
         
         if (!jsonText) {
@@ -129,26 +129,24 @@ export async function onRequest(context) {
              // 成功返回 JSON
              return new Response(JSON.stringify(parsedData), {
                 status: 200,
-                headers: jsonHeader, // 【关键修复点】
+                headers: jsonHeader, 
             });
         } catch (e) {
-             console.error('JSON.parse Error:', e);
              return new Response(JSON.stringify({ 
                 error: `规划失败：无法解析 Gemini 返回的 JSON 数据。` 
              }), {
                 status: 500,
-                headers: jsonHeader, // 【关键修复点】
+                headers: jsonHeader,
             });
         }
         
 
     } catch (e) {
-        console.error('Serverless Function Internal Error:', e);
         return new Response(JSON.stringify({ 
             error: `规划失败：发生内部错误（网络或运行时）。`
         }), {
             status: 500,
-            headers: jsonHeader, // 【关键修复点】
+            headers: jsonHeader,
         });
     }
 }
