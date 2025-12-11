@@ -1,6 +1,6 @@
 /**
  * Cloudflare Pages Function: /api/plan
- * 最终确认版：确保 Prompt 文本和错误处理的健壮性。
+ * 最终修复版本：移除不兼容 v1beta 接口的 'config' 字段，确保 API 请求有效。
  */
 
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
@@ -75,27 +75,26 @@ export async function onRequest(context) {
 
         const promptText = buildPromptText(city, days, requiredSpots);
 
-        // 使用 encodeURIComponent 确保 Key 在 URL 中安全传递，避免特殊字符问题
+        // 使用 encodeURIComponent 确保 Key 在 URL 中安全传递
         const safeGeminiKey = encodeURIComponent(geminiKey);
         
-        const apiResponse = await fetch(`${GEMINI_API_URL}?key=${safeGeminiKey}`, { // 使用安全 Key
+        const apiResponse = await fetch(`${GEMINI_API_URL}?key=${safeGeminiKey}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
                 contents: [{ role: 'user', parts: [{ text: promptText }] }],
-                config: {},
+                // 【核心修复】：移除空的 config: {} 字段，解决 "Unknown name config" 错误
             }),
         });
 
         // 检查 Gemini API 响应状态
         if (!apiResponse.ok) {
-            const apiError = await apiResponse.json(); // 尝试读取 JSON 错误响应
+            const apiError = await apiResponse.json(); 
             console.error('Gemini API Error:', apiError);
             
-            let errorMessage = `Gemini API 调用失败: ${apiResponse.statusText}.`;
-            // 如果 API 提供了详细信息，则加入到错误中
+            let errorMessage = `规划失败：Gemini API 调用失败: ${apiResponse.statusText}.`;
             if (apiError && apiError.error && apiError.error.message) {
                  errorMessage += ` 详情: ${apiError.error.message}`;
             }
